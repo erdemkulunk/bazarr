@@ -147,6 +147,8 @@ def manual_upload_subtitle(path, language, forced, hi, media_type, subtitle, fil
         return
     except Exception as e:
         logging.exception(f'BAZARR Error saving Subtitles file to disk for this file {path}: {str(e)}')
+        if create_only:
+            raise
         return
 
     if len(saved_subtitles) < 1:

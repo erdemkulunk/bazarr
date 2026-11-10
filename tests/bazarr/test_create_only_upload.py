@@ -72,3 +72,57 @@ def test_failed_write_leaves_no_published_or_temporary_file(tmp_path, monkeypatc
         publication.create_file(str(target), SRT)
     assert not target.exists()
     assert not list(tmp_path.glob('.bazarr-*.tmp'))
+
+
+@pytest.mark.parametrize('failure', ['permission', 'unsupported', 'existing', 'legacy'])
+def test_native_queued_upload_reports_real_create_failures(tmp_path, monkeypatch, failure):
+    """Run the real enqueue/consumer path, preserving collision indexing and the legacy failure contract."""
+    import errno
+    from io import BytesIO
+    from types import SimpleNamespace
+    import app.jobs_queue as queue_module
+    from bazarr.subtitles import upload
+
+    queue = queue_module.JobsQueue()
+    events, indexed, history = [], [], []
+    monkeypatch.setattr(upload, 'jobs_queue', queue)
+    monkeypatch.setattr(queue_module, 'event_stream', lambda **event: events.append(event))
+    metadata = SimpleNamespace(profileId=1, sonarrSeriesId=1, sonarrEpisodeId=1,
+                               season=1, episode=1, imdbId='tt999000169', tvdbId=999000169)
+    monkeypatch.setattr(upload, 'database', SimpleNamespace(
+        execute=lambda query: SimpleNamespace(first=lambda: metadata)))
+    monkeypatch.setattr(upload, 'get_profiles_list', lambda profile: {'originalFormat': False})
+    monkeypatch.setattr(upload, 'store_subtitles', lambda episode: indexed.append(episode))
+    monkeypatch.setattr(upload, 'history_log', lambda *args, **kwargs: history.append(args))
+    video, target = tmp_path / 'episode.mkv', tmp_path / 'episode.en.srt'
+    if failure == 'existing':
+        target.write_bytes(b'Concurrent manual winner.\n')
+    elif failure == 'legacy':
+        def fail_save(*args, **kwargs):
+            raise PermissionError(errno.EACCES, 'simulated legacy write permission failure')
+        monkeypatch.setattr(upload, 'save_subtitles', fail_save)
+    else:
+        def fail_link(source, destination):
+            assert open(source, 'rb').read() == SRT
+            raise OSError(errno.EPERM if failure == 'permission' else errno.EOPNOTSUPP,
+                          'simulated hardlink publication failure')
+        monkeypatch.setattr(publication.os, 'link', fail_link)
+
+    job_id = upload.manual_upload_subtitle(
+        path=str(video), language='en', forced=False, hi=False, media_type='series',
+        subtitle=BytesIO(SRT), filename='episode.en.srt', audio_language='[]',
+        sonarrSeriesId=1, sonarrEpisodeId=1, create_only=failure != 'legacy')
+    assert queue.get_job_status(job_id) == 'pending'
+    assert queue.jobs_pending_queue[0].kwargs['create_only'] is (failure != 'legacy')
+    succeeded = queue._run_job()
+    failed = failure in ['permission', 'unsupported']
+    assert succeeded is not failed
+    assert queue.get_job_status(job_id) == ('failed' if failed else 'completed')
+    assert events[-1]['payload']['status'] == ('failed' if failed else 'completed')
+    assert indexed == ([1] if failure == 'existing' else [])
+    assert history == []
+    assert not list(tmp_path.glob('.bazarr-*.tmp'))
+    if failure == 'existing':
+        assert target.read_bytes() == b'Concurrent manual winner.\n'
+    else:
+        assert not target.exists()
