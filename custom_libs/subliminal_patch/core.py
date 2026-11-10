@@ -1276,13 +1276,15 @@ def save_subtitles(file_path, subtitles, single=False, directory=None, chmod=Non
                     with open(subtitle_path, 'wb') as f:
                         f.write(content)
                 else:
-                    create_file(subtitle_path, content)
+                    create_file(subtitle_path, content, chmod=chmod)
                 subtitle.storage_path = subtitle_path
             else:
+                if not overwrite:
+                    raise ValueError("No subtitle content to publish")
                 logger.error(u"Something went wrong when getting modified subtitle for %s", subtitle)
 
         # change chmod if requested
-        if chmod:
+        if chmod and overwrite:
             os.chmod(subtitle_path, chmod)
 
         saved_subtitles.append(subtitle)
