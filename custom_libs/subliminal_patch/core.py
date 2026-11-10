@@ -11,6 +11,7 @@ import time
 import operator
 import unicodedata
 import itertools
+from .publication import create_file
 import rarfile
 import requests
 
@@ -1194,7 +1195,7 @@ def get_subtitle_path(video_path, language=None, extension='.srt', forced_tag=Fa
 
 
 def save_subtitles(file_path, subtitles, single=False, directory=None, chmod=None, formats=("srt",),
-                   tags=None, path_decoder=None, debug_mods=False):
+                   tags=None, path_decoder=None, debug_mods=False, overwrite=True):
     """Save subtitles on filesystem.
 
     Subtitles are saved in the order of the list. If a subtitle with a language has already been saved, other subtitles
@@ -1269,17 +1270,21 @@ def save_subtitles(file_path, subtitles, single=False, directory=None, chmod=Non
                 e.bazarr_failed_subtitle = subtitle  # type: ignore[attr-defined]
                 raise
             if content:
-                if os.path.exists(subtitle_path):
-                    os.remove(subtitle_path)
-
-                with open(subtitle_path, 'wb') as f:
-                    f.write(content)
+                if overwrite:
+                    if os.path.exists(subtitle_path):
+                        os.remove(subtitle_path)
+                    with open(subtitle_path, 'wb') as f:
+                        f.write(content)
+                else:
+                    create_file(subtitle_path, content, chmod=chmod)
                 subtitle.storage_path = subtitle_path
             else:
+                if not overwrite:
+                    raise ValueError("No subtitle content to publish")
                 logger.error(u"Something went wrong when getting modified subtitle for %s", subtitle)
 
         # change chmod if requested
-        if chmod:
+        if chmod and overwrite:
             os.chmod(subtitle_path, chmod)
 
         saved_subtitles.append(subtitle)

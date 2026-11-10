@@ -38,7 +38,7 @@ from jellyfin.operations import jellyfin_refresh_item
 
 
 def manual_upload_subtitle(path, language, forced, hi, media_type, subtitle, filename, audio_language, job_id=None,
-                           sonarrSeriesId=None, sonarrEpisodeId=None, radarrId=None):
+                           sonarrSeriesId=None, sonarrEpisodeId=None, radarrId=None, create_only=False):
     if not job_id:
         return jobs_queue.add_job_from_function(f"Uploading {filename}", is_progress=False)
 
@@ -132,12 +132,28 @@ def manual_upload_subtitle(path, language, forced, hi, media_type, subtitle, fil
                                          directory=get_target_folder(path),
                                          chmod=chmod,
                                          formats=sub_format if use_original_format else ("srt",),
-                                         path_decoder=force_unicode)
+                                         path_decoder=force_unicode,
+                                         overwrite=not create_only)
+    except FileExistsError:
+        if not create_only:
+            logging.exception(f'BAZARR Error saving Subtitles file to disk for this file: {path}')
+            return
+        # A concurrent native/manual writer won. Index its file without replacing
+        # its bytes or recording our upload as successful.
+        if media_type == 'series':
+            store_subtitles(sonarrEpisodeId)
+        else:
+            store_subtitles_movie(radarrId)
+        return
     except Exception as e:
         logging.exception(f'BAZARR Error saving Subtitles file to disk for this file {path}: {str(e)}')
+        if create_only:
+            raise
         return
 
     if len(saved_subtitles) < 1:
+        if create_only:
+            raise ValueError("No subtitle bytes were published")
         logging.exception(f'BAZARR Error saving Subtitles file to disk for this file: {path}')
         return
 
