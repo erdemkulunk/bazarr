@@ -37,6 +37,7 @@ class SystemStatus(Resource):
             logging.exception("BAZARR is unable to get configured time zone name.")
 
         system_status = {}
+        system_status['subtitle_upload_create_only'] = True
         system_status.update({'bazarr_version': os.environ["BAZARR_VERSION"]})
         system_status.update({'package_version': package_version})
         system_status.update({'sonarr_version': get_sonarr_info.version()})

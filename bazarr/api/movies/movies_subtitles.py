@@ -63,7 +63,7 @@ class MoviesSubtitles(Resource):
     @api_ns_movies_subtitles.response(404, 'Movie not found')
     @api_ns_movies_subtitles.response(409, 'Unable to save subtitles file. Permission or path mapping issue?')
     @api_ns_movies_subtitles.response(500, 'Movie file not found. Path mapping issue?')
-    def post(self):
+    def post(self, create_only=False):
         """Upload a movie subtitles"""
         # TODO: Support Multiply Upload
         args = self.post_request_parser.parse_args()
@@ -98,7 +98,8 @@ class MoviesSubtitles(Resource):
                                subtitle=subtitle_content,
                                filename=uploaded_file.filename,
                                audio_language=movieInfo.audio_language,
-                               radarrId=radarrId)
+                               radarrId=radarrId,
+                               create_only=create_only)
 
         return '', 204
 
@@ -154,3 +155,12 @@ class MoviesSubtitles(Resource):
                 return '', 204
 
         return 'Subtitles file not found or permission issue.', 500
+
+
+@api_ns_movies_subtitles.route('movies/subtitles/create')
+class MoviesSubtitlesCreate(Resource):
+    @authenticate
+    @api_ns_movies_subtitles.doc(parser=MoviesSubtitles.post_request_parser)
+    def post(self):
+        """Create a movie subtitle without replacing any existing destination."""
+        return MoviesSubtitles().post(create_only=True)
