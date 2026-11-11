@@ -216,7 +216,8 @@ def plex_update_library(is_movie_library: bool) -> None:
         logger.error(f"Error in plex_update_library: {e}")
 
 
-def plex_refresh_item(imdb_id: str, is_movie: bool, season: int = None, episode: int = None) -> None:
+def plex_refresh_item(imdb_id: str, is_movie: bool, season: int = None, episode: int = None,
+                      *, allow_library_update: bool = True) -> None:
     """
     Refresh a specific item in Plex instead of scanning the entire library.
     This is much more efficient than a full library scan when subtitles are added.
@@ -226,6 +227,7 @@ def plex_refresh_item(imdb_id: str, is_movie: bool, season: int = None, episode:
     :param is_movie: True for movie, False for TV episode
     :param season: Season number for TV episodes
     :param episode: Episode number for TV episodes
+    :param allow_library_update: Fall back to updating configured libraries if the item cannot be refreshed
     """
     try:
         plex = get_plex_server()
@@ -267,11 +269,9 @@ def plex_refresh_item(imdb_id: str, is_movie: bool, season: int = None, episode:
                 logger.debug(f"Item not found in library '{library_name}': {lib_error}")
                 continue
         
-        # If we get here, item wasn't found in any library - fall back to full update
-        logger.warning(f"Item (IMDB: {imdb_id}) not found in any configured library, falling back to library update")
-        plex_update_library(is_movie)
-            
+        logger.warning(f"Item (IMDB: {imdb_id}) not found in any configured library")
     except Exception as e:
-        logger.warning(f"Failed to refresh specific item (IMDB: {imdb_id}), falling back to library update: {e}")
-        # Fallback to full library update if specific refresh fails
+        logger.warning(f"Failed to refresh specific item (IMDB: {imdb_id}): {e}")
+
+    if allow_library_update:
         plex_update_library(is_movie)
