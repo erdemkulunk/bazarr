@@ -227,7 +227,8 @@ def manual_upload_subtitle(path, language, forced, hi, media_type, subtitle, fil
             if settings.general.use_plex:
                 if settings.plex.update_series_library:
                     plex_refresh_item(episode_metadata.imdbId, is_movie=False,
-                                      season=episode_metadata.season, episode=episode_metadata.episode)
+                                      season=episode_metadata.season, episode=episode_metadata.episode,
+                                      allow_library_update=not create_only)
                 if settings.plex.set_episode_added:
                     plex_set_episode_added_date_now(episode_metadata)
             if settings.general.use_jellyfin and settings.jellyfin.update_series_library:
@@ -241,7 +242,8 @@ def manual_upload_subtitle(path, language, forced, hi, media_type, subtitle, fil
                 send_notifications_movie(radarrId, result.message)
             if settings.general.use_plex:
                 if settings.plex.update_movie_library:
-                    plex_refresh_item(movie_metadata.imdbId, is_movie=True)
+                    plex_refresh_item(movie_metadata.imdbId, is_movie=True,
+                                      allow_library_update=not create_only)
                 if settings.plex.set_movie_added:
                     plex_set_movie_added_date_now(movie_metadata)
             if settings.general.use_jellyfin and settings.jellyfin.update_movie_library:
